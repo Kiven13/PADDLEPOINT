@@ -1,0 +1,48 @@
+name: pickleball_scoreboard
+description: Pickleball Scoreboard BLE Remote Controller
+
+publish_to: 'none'
+version: 1.0.0+2
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # BLE communication
+  flutter_blue_plus: ^1.31.0
+
+  # State management
+  provider: ^6.1.2
+
+  # Local database for match history
+  sqflite: ^2.3.2
+  path: ^1.9.0
+
+  # Fonts
+  google_fonts: ^6.2.1
+
+  # Permissions handling
+  permission_handler: ^11.3.1
+
+  # UUID generation for match IDs
+  uuid: ^4.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+  
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/paddlepoint.png"
+  adaptive_icon_background: "#0A1F2B"
+  adaptive_icon_foreground: "assets/icons/paddlepoint.png"
+  min_sdk_android: 21
+  
+flutter:
+  uses-material-design: true
