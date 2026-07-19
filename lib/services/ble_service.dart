@@ -93,6 +93,27 @@ class BleService extends ChangeNotifier {
     failureReason = BleFailureReason.none;
     notifyListeners();
 
+    // Force a clean slate before (re)connecting. A prior failed attempt
+    // (e.g. wrong PIN) only ever called removeBond() — never
+    // disconnect() — so the BLE *link* itself can still be up at the OS
+    // level even though we already surfaced an error to the user. If the
+    // link is still alive, device.connect() below can resolve almost
+    // instantly without ever re-triggering pairing, the ESP32 (which
+    // only rotates its PIN on an actual disconnect event) never
+    // generates a new one, and createBond() below can hang indefinitely
+    // waiting on a pairing flow the OS thinks is unnecessary — which is
+    // exactly the "stuck on Connecting…" symptom after tapping Try Again.
+    try {
+      await device.disconnect();
+    } catch (e) {
+      debugPrint('BLE disconnect (pre-connect) skipped: $e');
+    }
+    // Give the OS a beat to finish tearing down the link/bond state
+    // before asking it to reconnect — doing this back-to-back on some
+    // Android versions races the teardown and the new connect silently
+    // reuses stale state instead of starting fresh.
+    await Future.delayed(const Duration(milliseconds: 300));
+
     // Tracks whether we ever made it all the way to `connected`. With
     // SC_MITM + no bonding, a wrong PIN doesn't come back as a distinct
     // error — the ESP32 just drops the link mid-handshake. So: if the
@@ -142,7 +163,19 @@ class BleService extends ChangeNotifier {
       // reliable timing on some Android versions.
       if (Platform.isAndroid) {
         try {
-          await device.createBond();
+          await device.createBond().timeout(const Duration(seconds: 15));
+        } on TimeoutException {
+          // createBond() never resolved — almost always because the OS
+          // still thinks a bond/link exists from a previous attempt and
+          // silently declined to start a fresh pairing flow. Treat this
+          // the same as a wrong PIN so the user gets a live retry
+          // instead of a frozen "Connecting…" screen.
+          debugPrint('BLE createBond timed out');
+          failureReason = BleFailureReason.wrongPin;
+          errorMessage = 'Incorrect PIN. Please try again.';
+          status = BleStatus.error;
+          notifyListeners();
+          return;
         } catch (e) {
           debugPrint('BLE createBond error: $e');
           failureReason = BleFailureReason.wrongPin;
